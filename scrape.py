@@ -10,24 +10,35 @@ TEAM_NAMES = ['Cardinals','Falcons','Ravens','Bills','Panthers','Bears','Bengals
 
 TEAMS = dict(zip(TEAM_NAMES,TEAM_CODES))
 
-def get_team_string(t):
+def get_team_string_regular(t):
 
 	return "http://www.pro-football-reference.com/play-index/play_finder.cgi?request=1&match=summary_all&search=&player_id=&year_min=2015&year_max=2015&team_id=%s&opp_id=&game_type=&playoff_round=&game_num_min=0&game_num_max=99&week_num_min=0&week_num_max=99&quarter=1&quarter=2&quarter=3&quarter=4&quarter=5&tr_gtlt=lt&minutes=15&seconds=00&down=3&down=4&yds_to_go_min=1&yds_to_go_max=5&yg_gtlt=gt&yards=&is_first_down=-1&field_pos_min_field=team&field_pos_min=&field_pos_max_field=team&field_pos_max=&end_field_pos_min_field=team&end_field_pos_min=&end_field_pos_max_field=team&end_field_pos_max=&type=PASS&type=RUSH&is_complete=-1&is_turnover=-1&turnover_type=interception&turnover_type=fumble&is_scoring=-1&score_type=touchdown&score_type=field_goal&score_type=safety&is_sack=-1&include_kneels=0&no_play=0&game_day_of_week=&game_location=&game_result=&margin_min=&margin_max=&order_by=yards&rush_direction=LE&rush_direction=LT&rush_direction=LG&rush_direction=M&rush_direction=RG&rush_direction=RT&rush_direction=RE&pass_location=SL&pass_location=SM&pass_location=SR&pass_location=DL&pass_location=DM&pass_location=DR" % t
+
+def get_team_string_twopoint(t):
+	return "http://www.pro-football-reference.com/play-index/play_finder.cgi?request=1&match=summary_all&search=&player_id=&year_min=2015&year_max=2015&team_id=%s&opp_id=&game_type=&playoff_round=&game_num_min=0&game_num_max=99&week_num_min=0&week_num_max=99&quarter=1&quarter=2&quarter=3&quarter=4&quarter=5&tr_gtlt=lt&minutes=15&seconds=00&yds_to_go_min=&yds_to_go_max=&yg_gtlt=gt&yards=&is_first_down=-1&field_pos_min_field=team&field_pos_min=&field_pos_max_field=team&field_pos_max=&end_field_pos_min_field=team&end_field_pos_min=&end_field_pos_max_field=team&end_field_pos_max=&type=2PCR&type=2PCP&is_complete=-1&is_turnover=-1&turnover_type=interception&turnover_type=fumble&is_scoring=-1&score_type=touchdown&score_type=field_goal&score_type=safety&is_sack=-1&include_kneels=0&no_play=0&game_day_of_week=&game_location=&game_result=&margin_min=&margin_max=&order_by=yards&rush_direction=LE&rush_direction=LT&rush_direction=LG&rush_direction=M&rush_direction=RG&rush_direction=RT&rush_direction=RE&pass_location=SL&pass_location=SM&pass_location=SR&pass_location=DL&pass_location=DM&pass_location=DR" % t
+
 
 def get_page(s):
 
 	return requests.get(s).content
 
-def get_table(s):
+def get_table(s,which="regular"):
 
 	xpath = '//div[@id="div_"]/table'
-
+	
 	tree = html.fromstring(get_page(s))
-	table = tree.xpath(xpath)[0]
+
+	try:
+		table = tree.xpath(xpath)[0]
+	except IndexError:
+		return None
 
 	return table
 
 def get_table_values(table):
+
+	if table is None:
+		return pd.DataFrame()
 
 	_,thead,tbody = table.getchildren()
 
@@ -51,9 +62,12 @@ def get_table_values(table):
 	
 	return pd.DataFrame(values,columns=columns)
 
-def team_table(t):
+def team_table(t, which="regular"):
 
 	def table_process(table):
+
+		if table.shape[0] == 0:
+			return table
 
 		del table['Detail']
 		table.Yds = table.Yds.fillna(0)
@@ -68,21 +82,36 @@ def team_table(t):
 
 		return table
 
-	return table_process(get_table_values(get_table(get_team_string(t))))
+	if which == "regular":
+		return table_process(get_table_values(get_table(get_team_string_regular(t))))
+	else:
+		return table_process(get_table_values(get_table(get_team_string_twopoint(t), 'twopoint')))
 
 def scrape_all():
 
-	all_tables = None
+	all_tables_regular = None
+	all_tables_twopoint = None
 	for t in TEAM_CODES:
+		print t
 		table = team_table(t)
-		table.to_csv("data/%s.csv"% t,index=False)
+		table.to_csv("data/%s_regular.csv"% t,index=False)
 
-		if all_tables is None:
-			all_tables = table
+		if all_tables_regular is None:
+			all_tables_regular = table
 		else:
-			all_tables = pd.concat((all_tables,table))
+			all_tables_regular = pd.concat((all_tables_regular,table))
 
-	all_tables.to_csv("data/all.csv",index=False)
+		table = team_table(t,"twopoint")
+		table.to_csv("data/%s_twopoint.csv"% t,index=False)
+
+		if all_tables_twopoint is None:
+			all_tables_twopoint = table
+		else:
+			all_tables_twopoint = pd.concat((all_tables_twopoint,table))
+
+		
+	all_tables_regular.to_csv("data/all_regular.csv",index=False)
+	all_tables_twopoint.to_csv("data/all_twopoint.csv",index=False)
 
 
 if __name__ == "__main__":
