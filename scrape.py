@@ -80,6 +80,9 @@ def team_table(t, which="regular"):
 		table[['TmScore','OppScore']] = table[['TmScore','OppScore']].astype(int)
 		table['ScoreDifferential'] = table.TmScore - table.OppScore
 
+		if which == "twopoint":
+			table.success = (table.EPA == '1').astype(int)
+
 		return table
 
 	if which == "regular":
@@ -92,7 +95,6 @@ def scrape_all():
 	all_tables_regular = None
 	all_tables_twopoint = None
 	for t in TEAM_CODES:
-		print t
 		table = team_table(t)
 		table.to_csv("data/%s_regular.csv"% t,index=False)
 
